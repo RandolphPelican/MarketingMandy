@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+.venv/
+
+# Environment
+.env
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Mac
+.DS_Store
+*.app/
+
+# Uploads
+uploads/
