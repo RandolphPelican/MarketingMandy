@@ -87,6 +87,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         .platform-pill.selected { border-color: var(--green); background: rgba(0, 255, 136, 0.1); }
         .platform-pill .check { display: none; color: var(--green); }
         .platform-pill.selected .check { display: inline; }
+        .platform-pill.coming-soon-pill { opacity: 0.5; cursor: not-allowed; }
+        .platform-pill .soon-badge { font-size: 0.65rem; background: rgba(255,200,0,0.3); color: #ffcc00; padding: 0.15rem 0.4rem; border-radius: 8px; }
         .upload-area { border: 2px dashed var(--border); border-radius: 16px; padding: 1.5rem; text-align: center; margin-top: 0.75rem; cursor: pointer; transition: all 0.2s; }
         .upload-area:hover { border-color: var(--accent); background: rgba(255, 45, 146, 0.05); }
         .upload-area .icon { font-size: 2rem; margin-bottom: 0.5rem; }
@@ -118,275 +120,101 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
         .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
         @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+
+        .settings-btn { background: none; border: none; font-size: 1.3rem; cursor: pointer; padding: 0.5rem; margin-left: auto; opacity: 0.7; transition: opacity 0.2s; }
+        .settings-btn:hover { opacity: 1; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--bg-chat); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 600px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+        .modal-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .modal-header h2 { font-family: 'Syne', sans-serif; font-size: 1.2rem; }
+        .modal-close { background: none; border: none; color: var(--text-dim); font-size: 1.2rem; cursor: pointer; }
+        .modal-close:hover { color: var(--text); }
+        .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
+        .modal-intro { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1.5rem; }
+        .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 0.75rem; justify-content: flex-end; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent), #b14aff); border: none; color: white; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 600; cursor: pointer; }
+        .btn-primary:hover { box-shadow: 0 0 20px var(--accent-glow); }
+        .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 0.75rem 1.5rem; border-radius: 10px; cursor: pointer; }
+        .btn-secondary:hover { border-color: var(--text-dim); }
+        .platform-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 1rem; overflow: hidden; }
+        .platform-card-header { padding: 1rem; display: flex; align-items: center; gap: 0.75rem; cursor: pointer; }
+        .platform-card-header:hover { background: rgba(255,255,255,0.02); }
+        .platform-card-icon { font-size: 1.5rem; }
+        .platform-card-name { font-weight: 600; flex: 1; }
+        .platform-card-status { font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 10px; }
+        .platform-card-status.connected { background: rgba(0,255,136,0.2); color: var(--green); }
+        .platform-card-status.not-connected { background: rgba(255,255,255,0.1); color: var(--text-dim); }
+        .platform-card-toggle { color: var(--text-dim); transition: transform 0.2s; }
+        .platform-card.expanded .platform-card-toggle { transform: rotate(180deg); }
+        .platform-card-body { display: none; padding: 0 1rem 1rem; border-top: 1px solid var(--border); }
+        .platform-card.expanded .platform-card-body { display: block; }
+        .cred-field { margin-top: 1rem; }
+        .cred-field label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.4rem; }
+        .cred-field input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem; color: var(--text); font-family: monospace; font-size: 0.85rem; }
+        .cred-field input:focus { outline: none; border-color: var(--accent); }
+        .cred-field input::placeholder { color: var(--text-dim); opacity: 0.5; }
+        .cred-help { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.3rem; }
+        .cred-help a { color: var(--blue); text-decoration: none; }
+        .cred-help a:hover { text-decoration: underline; }
+        .test-connection { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem; cursor: pointer; margin-top: 1rem; }
+        .test-connection:hover { border-color: var(--blue); color: var(--blue); }
+        .platform-card.coming-soon { opacity: 0.6; }
+        .platform-card.coming-soon .platform-card-header { cursor: default; }
+        .platform-card-status.coming-soon { background: rgba(255,200,0,0.2); color: #ffcc00; }
+        .coming-soon-msg { color: var(--text-dim); font-style: italic; padding: 0.5rem 0; }
     </style>
 </head>
 <body>
     <div class="header">
         <div class="mandy-avatar">👩‍💼</div>
         <div class="header-text"><h1>Marketing Mandy</h1><p>Your AI Posting Homie</p></div>
+        <button class="settings-btn" id="settingsBtn">⚙️</button>
         <div class="status-dot"></div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>⚙️ Platform Credentials</h2>
+                <button class="modal-close" id="closeSettings">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-intro">Connect your accounts to start posting. Your credentials are stored locally and encrypted.</p>
+                
+                <div class="platform-settings" id="platformSettings">
+                    <!-- Platform cards will be inserted here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancelSettings">Cancel</button>
+                <button class="btn-primary" id="saveSettings">💾 Save All</button>
+            </div>
+        </div>
     </div>
     <div class="chat-container" id="chat"></div>
     <div class="input-container">
         <div class="input-row">
             <div class="input-wrapper">
-                <button class="attach-btn" onclick="triggerUpload()">📎</button>
+                <button class="attach-btn">📎</button>
                 <textarea class="chat-input" id="userInput" placeholder="Tell Mandy about your business..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
             </div>
-            <button class="send-btn" onclick="sendMessage()">➤</button>
+            <button class="send-btn">➤</button>
         </div>
-        <button class="market-btn" id="marketBtn" onclick="launchCampaign()">🚀 START MARKETING</button>
+        <button class="market-btn" id="marketBtn">🚀 START MARKETING</button>
     </div>
     <input type="file" id="fileInput" multiple accept="image/*,video/*" style="display:none" onchange="handleFiles(event)">
-    <script>
-        const state = { stage: 'intro', product: {}, assets: [], platforms: [], schedule: {}, campaignId: null };
-        const platforms = {"instagram":{"icon":"📸","name":"Instagram"},"x":{"icon":"𝕏","name":"X (Twitter)"},"linkedin":{"icon":"💼","name":"LinkedIn"},"facebook":{"icon":"📘","name":"Facebook"},"tiktok":{"icon":"🎵","name":"TikTok"},"reddit":{"icon":"🔶","name":"Reddit"},"youtube":{"icon":"📺","name":"YouTube"},"threads":{"icon":"🧵","name":"Threads"},"pinterest":{"icon":"📌","name":"Pinterest"}};
-        const defaultSchedules = {"instagram":{"times":["11:00","21:00"]},"x":{"times":["09:00","12:00","17:00"]},"linkedin":{"times":["07:30","12:00"]},"facebook":{"times":["09:00","13:00","19:00"]},"tiktok":{"times":["12:00","19:00","22:00"]},"reddit":{"times":["10:00","19:00"]},"youtube":{"times":["15:00"]},"threads":{"times":["09:00","18:00"]},"pinterest":{"times":["14:00","21:00"]}};
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            addMandyMessage("Hey! 👋 I'm Mandy, your marketing sidekick. What are we promoting today?", ["I'm selling t-shirts", "I have a software product", "I run a local business", "Something else"]);
-            
-            document.querySelector('.attach-btn').addEventListener('click', triggerUpload);
-            document.querySelector('.send-btn').addEventListener('click', sendMessage);
-            document.getElementById('marketBtn').addEventListener('click', launchCampaign);
-            document.getElementById('fileInput').addEventListener('change', handleFiles);
-            document.getElementById('userInput').addEventListener('keydown', handleKeyDown);
-        });
-        
-        function addMandyMessage(text, quickActions, extra) {
-            quickActions = quickActions || [];
-            extra = extra || '';
-            const chat = document.getElementById('chat');
-            const msg = document.createElement('div');
-            msg.className = 'message mandy';
-            let html = text;
-            if (quickActions.length) {
-                html += '<div class="quick-actions">';
-                quickActions.forEach(function(a) { 
-                    html += '<button class="quick-btn" data-action="' + a + '">' + a + '</button>'; 
-                });
-                html += '</div>';
-            }
-            msg.innerHTML = html + extra;
-            chat.appendChild(msg);
-            chat.scrollTop = chat.scrollHeight;
-            
-            msg.querySelectorAll('.quick-btn').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    handleQuickAction(this.getAttribute('data-action'));
-                });
-            });
-            
-            var uploadArea = msg.querySelector('.upload-area');
-            if (uploadArea) {
-                uploadArea.addEventListener('click', triggerUpload);
-            }
-        }
-        
-        function addUserMessage(text) {
-            const chat = document.getElementById('chat');
-            const msg = document.createElement('div');
-            msg.className = 'message user';
-            msg.textContent = text;
-            chat.appendChild(msg);
-            chat.scrollTop = chat.scrollHeight;
-        }
-        
-        function addSystemMessage(text) {
-            const chat = document.getElementById('chat');
-            const msg = document.createElement('div');
-            msg.className = 'message system';
-            msg.innerHTML = text;
-            chat.appendChild(msg);
-            chat.scrollTop = chat.scrollHeight;
-        }
-        
-        function showTyping() {
-            const chat = document.getElementById('chat');
-            const t = document.createElement('div');
-            t.className = 'message mandy'; 
-            t.id = 'typing';
-            t.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
-            chat.appendChild(t);
-            chat.scrollTop = chat.scrollHeight;
-        }
-        
-        function hideTyping() { 
-            const t = document.getElementById('typing'); 
-            if (t) t.remove(); 
-        }
-        
-        function handleQuickAction(action) { 
-            addUserMessage(action); 
-            processInput(action); 
-        }
-        
-        function sendMessage() {
-            const input = document.getElementById('userInput');
-            const text = input.value.trim();
-            if (!text) return;
-            addUserMessage(text);
-            input.value = '';
-            processInput(text);
-        }
-        
-        function handleKeyDown(e) { 
-            if (e.key === 'Enter' && !e.shiftKey) { 
-                e.preventDefault(); 
-                sendMessage(); 
-            } 
-        }
-        
-        function processInput(text) {
-            showTyping();
-            setTimeout(function() {
-                hideTyping();
-                if (state.stage === 'intro') {
-                    state.product.name = text;
-                    state.stage = 'product';
-                    addMandyMessage("Nice! Tell me more - what's the vibe? Who's it for?", ["Trendy & youthful", "Professional & clean", "Fun & quirky", "Premium & luxury"]);
-                } else if (state.stage === 'product') {
-                    state.product.vibe = text;
-                    state.stage = 'assets';
-                    addMandyMessage("Got it! Now drop some visuals - logo, product pics, any ads you've made.", [], '<div class="upload-area" id="uploadArea"><div class="icon">📁</div><div>Drop files here or click to browse</div></div><div class="uploaded-files" id="uploadedFiles"></div>');
-                } else if (state.stage === 'assets') {
-                    state.stage = 'platforms';
-                    showPlatformSelection();
-                } else if (state.stage === 'platforms') {
-                    state.stage = 'schedule';
-                    showSchedulePreview();
-                } else if (state.stage === 'schedule') {
-                    state.stage = 'ready';
-                    showReadyState();
-                }
-            }, 800);
-        }
-        
-        function showPlatformSelection() {
-            let html = '<div class="platform-pills">';
-            for (const id in platforms) {
-                const p = platforms[id];
-                html += '<div class="platform-pill" data-platform="' + id + '"><span>' + p.icon + '</span><span>' + p.name + '</span><span class="check">✓</span></div>';
-            }
-            html += '</div><div style="margin-top:1rem"><button class="quick-btn" id="confirmPlatformsBtn">Done selecting →</button></div>';
-            addMandyMessage("Where do you want to post?", [], html);
-            
-            setTimeout(function() {
-                document.querySelectorAll('.platform-pill').forEach(function(pill) {
-                    pill.addEventListener('click', function() {
-                        togglePlatform(this.getAttribute('data-platform'));
-                    });
-                });
-                var confirmBtn = document.getElementById('confirmPlatformsBtn');
-                if (confirmBtn) {
-                    confirmBtn.addEventListener('click', confirmPlatforms);
-                }
-            }, 100);
-        }
-        
-        function togglePlatform(id) {
-            const pill = document.querySelector('[data-platform="' + id + '"]');
-            const idx = state.platforms.indexOf(id);
-            if (idx > -1) { 
-                state.platforms.splice(idx, 1); 
-                pill.classList.remove('selected'); 
-            } else { 
-                state.platforms.push(id); 
-                pill.classList.add('selected'); 
-            }
-        }
-        
-        function confirmPlatforms() {
-            if (state.platforms.length === 0) { 
-                addSystemMessage("Pick at least one!"); 
-                return; 
-            }
-            addUserMessage("Selected: " + state.platforms.map(function(p) { return platforms[p].name; }).join(', '));
-            state.stage = 'schedule';
-            showSchedulePreview();
-        }
-        
-        function showSchedulePreview() {
-            let html = '<div class="schedule-preview">';
-            state.platforms.forEach(function(pid) {
-                const p = platforms[pid];
-                const s = defaultSchedules[pid];
-                html += '<div class="schedule-item"><span>' + p.icon + '</span><span>' + p.name + '</span><span class="times">' + s.times.join(' & ') + '</span></div>';
-            });
-            html += '</div>';
-            addMandyMessage("Here's when I'll post (optimal times):", ["Sounds good!", "Use defaults"], html);
-        }
-        
-        function showReadyState() {
-            addMandyMessage("🎯 Ready!<br><br><b>Product:</b> " + state.product.name + "<br><b>Vibe:</b> " + state.product.vibe + "<br><b>Assets:</b> " + state.assets.length + " files<br><b>Platforms:</b> " + state.platforms.map(function(p) { return platforms[p].icon; }).join(' ') + "<br><br>Hit that green button!");
-            document.getElementById('marketBtn').classList.add('visible');
-        }
-        
-        function launchCampaign() {
-            const btn = document.getElementById('marketBtn');
-            btn.textContent = '⏳ Launching...'; 
-            btn.disabled = true;
-            fetch('/api/launch', { 
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({ product: state.product, assets: state.assets, platforms: state.platforms }) 
-            })
-            .then(function(res) { return res.json(); })
-            .then(function(data) {
-                state.campaignId = data.campaign_id;
-                btn.style.display = 'none';
-                addSystemMessage("🎉 Campaign is LIVE!");
-                addMandyMessage("I'm now posting for you! Next post: " + platforms[state.platforms[0]].icon + " at " + defaultSchedules[state.platforms[0]].times[0], ["Show schedule", "Pause campaign"]);
-            })
-            .catch(function(e) { 
-                btn.textContent = '🚀 START MARKETING'; 
-                btn.disabled = false; 
-                addSystemMessage("Oops! Try again."); 
-            });
-        }
-        
-        function triggerUpload() { 
-            document.getElementById('fileInput').click(); 
-        }
-        
-        function handleFiles(e) {
-            const container = document.getElementById('uploadedFiles');
-            if (!container) return;
-            Array.from(e.target.files).forEach(function(file, i) {
-                const reader = new FileReader();
-                reader.onload = function(ev) {
-                    const id = Date.now() + i;
-                    state.assets.push({ id: id, name: file.name, data: ev.target.result });
-                    const thumb = document.createElement('div');
-                    thumb.className = 'uploaded-file';
-                    thumb.innerHTML = '<img src="' + ev.target.result + '"><div class="remove" data-id="' + id + '">✕</div>';
-                    thumb.querySelector('.remove').addEventListener('click', function() {
-                        removeFile(id);
-                    });
-                    container.appendChild(thumb);
-                };
-                reader.readAsDataURL(file);
-            });
-            setTimeout(function() { 
-                if (state.assets.length && state.stage === 'assets') {
-                    addMandyMessage("Got " + state.assets.length + " file(s). More, or we good?", ["That's all", "Add more"]); 
-                }
-            }, 500);
-        }
-        
-        function removeFile(id) { 
-            state.assets = state.assets.filter(function(a) { return a.id !== id; }); 
-            const el = document.querySelector('[data-id="' + id + '"]');
-            if (el) el.parentElement.remove();
-        }
-    </script>
+    <script src="/static/mandy.js"></script>
 </body>
 </html>'''
 
 
 @app.route('/')
 def index():
-    return render_template_string(HTML_TEMPLATE)
+    response = app.make_response(render_template_string(HTML_TEMPLATE))
+    response.headers['Content-Security-Policy'] = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;"
+    return response
 
 
 @app.route('/api/launch', methods=['POST'])
@@ -453,6 +281,107 @@ def execute_post(campaign_id: str, platform_id: str):
     if campaign['status'] != 'active':
         return
     print(f"[MANDY] Posting to {platform_id} for {campaign_id}")
+
+
+
+# Credentials storage
+CREDS_FILE = Path('./credentials.json')
+
+def load_creds_file():
+    if CREDS_FILE.exists():
+        try:
+            with open(CREDS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_creds_file(creds):
+    with open(CREDS_FILE, 'w') as f:
+        json.dump(creds, f)
+
+
+@app.route('/api/credentials', methods=['GET'])
+def get_credentials():
+    creds = load_creds_file()
+    return jsonify({'credentials': creds})
+
+
+@app.route('/api/credentials', methods=['POST'])
+def save_credentials():
+    data = request.json
+    creds = data.get('credentials', {})
+    save_creds_file(creds)
+    
+    # Also set as environment variables for current session
+    for k, v in creds.items():
+        if v:
+            os.environ[k] = v
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/test-connection', methods=['POST'])
+def test_connection():
+    data = request.json
+    platform = data.get('platform')
+    creds = data.get('credentials', {})
+    
+    # Set credentials temporarily
+    for k, v in creds.items():
+        if v:
+            os.environ[k] = v
+    
+    # Coming soon platforms
+    coming_soon = ['instagram', 'linkedin', 'facebook', 'tiktok', 'youtube', 'threads', 'pinterest']
+    if platform in coming_soon:
+        return jsonify({'success': False, 'error': 'Coming soon - awaiting API approval', 'coming_soon': True})
+    
+    try:
+        if platform == 'bluesky':
+            import requests as req
+            resp = req.post(
+                'https://bsky.social/xrpc/com.atproto.server.createSession',
+                json={
+                    'identifier': creds.get('BLUESKY_HANDLE'),
+                    'password': creds.get('BLUESKY_APP_PASSWORD')
+                }
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return jsonify({'success': True, 'user': data.get('handle')})
+            return jsonify({'success': False, 'error': resp.json().get('message', 'Auth failed')})
+        
+        elif platform == 'mastodon':
+            import requests as req
+            instance = creds.get('MASTODON_INSTANCE', 'mastodon.social')
+            token = creds.get('MASTODON_ACCESS_TOKEN')
+            resp = req.get(
+                f'https://{instance}/api/v1/accounts/verify_credentials',
+                headers={'Authorization': f'Bearer {token}'}
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return jsonify({'success': True, 'user': data.get('username')})
+            return jsonify({'success': False, 'error': 'Invalid token or instance'})
+        
+        elif platform == 'reddit':
+            import praw
+            reddit = praw.Reddit(
+                client_id=creds.get('REDDIT_CLIENT_ID'),
+                client_secret=creds.get('REDDIT_CLIENT_SECRET'),
+                username=creds.get('REDDIT_USERNAME'),
+                password=creds.get('REDDIT_PASSWORD'),
+                user_agent='MarketingMandy/1.0'
+            )
+            user = reddit.user.me()
+            return jsonify({'success': True, 'user': str(user)})
+        
+        else:
+            return jsonify({'success': False, 'error': 'Unknown platform'})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 
 def start_desktop():

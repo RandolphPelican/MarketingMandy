@@ -1,10 +1,14 @@
 """
 Platform Tools - Handles posting to various social media platforms
+v1.0 Supported: Bluesky, Mastodon, Reddit
+Coming Soon: Instagram, LinkedIn, Facebook, TikTok, YouTube, Threads, Pinterest
 """
 import os
 from typing import Dict, List
 from abc import ABC, abstractmethod
 import logging
+import requests
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,101 +38,152 @@ class BasePlatformTool(ABC):
         pass
 
 
-class TwitterTool(BasePlatformTool):
-    """Tool for posting to X (Twitter)"""
+class BlueskyTool(BasePlatformTool):
+    """Tool for posting to Bluesky - FREE, instant setup"""
     
     def _load_credentials(self):
-        self.api_key = os.getenv('TWITTER_API_KEY')
-        self.api_secret = os.getenv('TWITTER_API_SECRET')
-        self.access_token = os.getenv('TWITTER_ACCESS_TOKEN')
-        self.access_secret = os.getenv('TWITTER_ACCESS_SECRET')
-        self.bearer_token = os.getenv('TWITTER_BEARER_TOKEN')
+        self.handle = os.getenv('BLUESKY_HANDLE')
+        self.app_password = os.getenv('BLUESKY_APP_PASSWORD')
+        self.access_token = None
+        self.did = None
     
     def authenticate(self) -> bool:
-        if not all([self.api_key, self.api_secret, self.access_token, self.access_secret]):
-            logger.warning("Twitter credentials not configured")
+        if not all([self.handle, self.app_password]):
+            logger.warning("Bluesky credentials not configured")
             return False
+        
         try:
-            import tweepy
-            self.client = tweepy.Client(
-                bearer_token=self.bearer_token,
-                consumer_key=self.api_key,
-                consumer_secret=self.api_secret,
-                access_token=self.access_token,
-                access_token_secret=self.access_secret
+            response = requests.post(
+                'https://bsky.social/xrpc/com.atproto.server.createSession',
+                json={
+                    'identifier': self.handle,
+                    'password': self.app_password
+                }
             )
-            self.authenticated = True
-            return True
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.access_token = data['accessJwt']
+                self.did = data['did']
+                self.authenticated = True
+                return True
+            else:
+                logger.error(f"Bluesky auth failed: {response.text}")
+                return False
+                
         except Exception as e:
-            logger.error(f"Twitter auth failed: {e}")
+            logger.error(f"Bluesky auth error: {e}")
             return False
     
     def post(self, content: str, **kwargs) -> Dict:
-        if not self.authenticated and not self.authenticate():
-            return {'success': False, 'error': 'Not authenticated'}
+        if not self.authenticated:
+            if not self.authenticate():
+                return {'success': False, 'error': 'Not authenticated'}
+        
         try:
-            hashtags = kwargs.get('hashtags', [])
-            if hashtags:
-                hashtag_str = ' '.join(f'#{tag}' for tag in hashtags[:5])
-                if len(content) + len(hashtag_str) + 1 <= 280:
-                    content = f"{content} {hashtag_str}"
-            response = self.client.create_tweet(text=content)
-            return {'success': True, 'tweet_id': response.data['id'], 'platform': 'x'}
+            record = {
+                '$type': 'app.bsky.feed.post',
+                'text': content[:300],  # Bluesky limit
+                'createdAt': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+                'langs': ['en']
+            }
+            
+            response = requests.post(
+                'https://bsky.social/xrpc/com.atproto.repo.createRecord',
+                headers={'Authorization': f'Bearer {self.access_token}'},
+                json={
+                    'repo': self.did,
+                    'collection': 'app.bsky.feed.post',
+                    'record': record
+                }
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'success': True,
+                    'post_id': data.get('uri'),
+                    'platform': 'bluesky',
+                    'url': f"https://bsky.app/profile/{self.handle}/post/{data.get('uri', '').split('/')[-1]}"
+                }
+            else:
+                return {'success': False, 'error': response.text}
+                
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
     def get_status(self) -> Dict:
-        return {'platform': 'x', 'authenticated': self.authenticated}
+        return {'platform': 'bluesky', 'authenticated': self.authenticated}
 
 
-class LinkedInTool(BasePlatformTool):
-    """Tool for posting to LinkedIn"""
+class MastodonTool(BasePlatformTool):
+    """Tool for posting to Mastodon - FREE, instant setup"""
     
     def _load_credentials(self):
-        self.access_token = os.getenv('LINKEDIN_ACCESS_TOKEN')
-        self.person_id = os.getenv('LINKEDIN_PERSON_ID')
+        self.instance = os.getenv('MASTODON_INSTANCE', 'mastodon.social')
+        self.access_token = os.getenv('MASTODON_ACCESS_TOKEN')
     
     def authenticate(self) -> bool:
-        if not all([self.access_token, self.person_id]):
-            logger.warning("LinkedIn credentials not configured")
+        if not self.access_token:
+            logger.warning("Mastodon credentials not configured")
             return False
-        self.authenticated = True
-        return True
+        
+        try:
+            response = requests.get(
+                f'https://{self.instance}/api/v1/accounts/verify_credentials',
+                headers={'Authorization': f'Bearer {self.access_token}'}
+            )
+            
+            if response.status_code == 200:
+                self.authenticated = True
+                self.account = response.json()
+                return True
+            else:
+                logger.error(f"Mastodon auth failed: {response.text}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Mastodon auth error: {e}")
+            return False
     
     def post(self, content: str, **kwargs) -> Dict:
-        if not self.authenticated and not self.authenticate():
-            return {'success': False, 'error': 'Not authenticated'}
+        if not self.authenticated:
+            if not self.authenticate():
+                return {'success': False, 'error': 'Not authenticated'}
+        
         try:
-            import requests
-            headers = {
-                'Authorization': f'Bearer {self.access_token}',
-                'Content-Type': 'application/json',
-                'X-Restli-Protocol-Version': '2.0.0'
-            }
-            post_data = {
-                "author": f"urn:li:person:{self.person_id}",
-                "lifecycleState": "PUBLISHED",
-                "specificContent": {
-                    "com.linkedin.ugc.ShareContent": {
-                        "shareCommentary": {"text": content},
-                        "shareMediaCategory": "NONE"
-                    }
+            response = requests.post(
+                f'https://{self.instance}/api/v1/statuses',
+                headers={
+                    'Authorization': f'Bearer {self.access_token}',
+                    'Content-Type': 'application/json'
                 },
-                "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
-            }
-            response = requests.post('https://api.linkedin.com/v2/ugcPosts', headers=headers, json=post_data)
-            if response.status_code == 201:
-                return {'success': True, 'post_id': response.headers.get('x-restli-id'), 'platform': 'linkedin'}
-            return {'success': False, 'error': response.text}
+                json={
+                    'status': content[:500],  # Mastodon default limit
+                    'visibility': kwargs.get('visibility', 'public')
+                }
+            )
+            
+            if response.status_code in [200, 201]:
+                data = response.json()
+                return {
+                    'success': True,
+                    'post_id': data.get('id'),
+                    'platform': 'mastodon',
+                    'url': data.get('url')
+                }
+            else:
+                return {'success': False, 'error': response.text}
+                
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
     def get_status(self) -> Dict:
-        return {'platform': 'linkedin', 'authenticated': self.authenticated}
+        return {'platform': 'mastodon', 'authenticated': self.authenticated}
 
 
 class RedditTool(BasePlatformTool):
-    """Tool for posting to Reddit"""
+    """Tool for posting to Reddit - FREE for non-commercial"""
     
     def _load_credentials(self):
         self.client_id = os.getenv('REDDIT_CLIENT_ID')
@@ -140,6 +195,7 @@ class RedditTool(BasePlatformTool):
         if not all([self.client_id, self.client_secret, self.username, self.password]):
             logger.warning("Reddit credentials not configured")
             return False
+        
         try:
             import praw
             self.reddit = praw.Reddit(
@@ -149,6 +205,8 @@ class RedditTool(BasePlatformTool):
                 password=self.password,
                 user_agent='MarketingMandy/1.0'
             )
+            # Test auth
+            _ = self.reddit.user.me()
             self.authenticated = True
             return True
         except Exception as e:
@@ -156,13 +214,25 @@ class RedditTool(BasePlatformTool):
             return False
     
     def post(self, content: str, **kwargs) -> Dict:
-        if not self.authenticated and not self.authenticate():
-            return {'success': False, 'error': 'Not authenticated'}
+        if not self.authenticated:
+            if not self.authenticate():
+                return {'success': False, 'error': 'Not authenticated'}
+        
         try:
             subreddit = kwargs.get('subreddit', 'test')
             title = kwargs.get('title', content[:100])
-            submission = self.reddit.subreddit(subreddit).submit(title=title, selftext=content)
-            return {'success': True, 'post_id': submission.id, 'url': submission.url, 'platform': 'reddit'}
+            
+            submission = self.reddit.subreddit(subreddit).submit(
+                title=title,
+                selftext=content
+            )
+            
+            return {
+                'success': True,
+                'post_id': submission.id,
+                'url': submission.url,
+                'platform': 'reddit'
+            }
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
@@ -170,8 +240,8 @@ class RedditTool(BasePlatformTool):
         return {'platform': 'reddit', 'authenticated': self.authenticated}
 
 
-class MockPlatformTool(BasePlatformTool):
-    """Mock tool for testing without real API calls"""
+class ComingSoonTool(BasePlatformTool):
+    """Placeholder for platforms coming soon"""
     
     def __init__(self, platform_name: str):
         self.platform_name = platform_name
@@ -181,77 +251,95 @@ class MockPlatformTool(BasePlatformTool):
         pass
     
     def authenticate(self) -> bool:
-        self.authenticated = True
-        return True
+        return False
     
     def post(self, content: str, **kwargs) -> Dict:
-        logger.info(f"[MOCK] Posting to {self.platform_name}: {content[:50]}...")
         return {
-            'success': True,
-            'post_id': f'mock_{self.platform_name}_{hash(content) % 10000}',
+            'success': False,
+            'error': f'{self.platform_name} coming soon! We are awaiting API approval.',
             'platform': self.platform_name,
-            'mock': True
+            'coming_soon': True
         }
     
     def get_status(self) -> Dict:
-        return {'platform': self.platform_name, 'authenticated': True, 'mock': True}
+        return {
+            'platform': self.platform_name,
+            'authenticated': False,
+            'coming_soon': True
+        }
 
 
 class PlatformManager:
     """Manages all platform tools"""
     
-    PLATFORM_MAP = {
-        'x': TwitterTool,
-        'twitter': TwitterTool,
-        'linkedin': LinkedInTool,
+    # v1.0 Supported platforms
+    SUPPORTED_PLATFORMS = {
+        'bluesky': BlueskyTool,
+        'mastodon': MastodonTool,
         'reddit': RedditTool,
     }
     
-    ALL_PLATFORMS = ['x', 'linkedin', 'reddit', 'meta', 'instagram', 'tiktok', 'youtube', 'threads', 'pinterest']
+    # Coming soon - awaiting API approval
+    COMING_SOON = ['instagram', 'linkedin', 'facebook', 'tiktok', 'youtube', 'threads', 'pinterest']
+    
+    # Not planned (too expensive)
+    # 'x' / 'twitter' - $100/mo minimum
     
     PLATFORM_INFO = {
-        'x': {'icon': '𝕏', 'name': 'X (Twitter)', 'max_chars': 280},
-        'linkedin': {'icon': '💼', 'name': 'LinkedIn', 'max_chars': 3000},
-        'reddit': {'icon': '🔶', 'name': 'Reddit', 'max_chars': 40000},
-        'meta': {'icon': '📘', 'name': 'Facebook', 'max_chars': 63206},
-        'instagram': {'icon': '📸', 'name': 'Instagram', 'max_chars': 2200},
-        'tiktok': {'icon': '🎵', 'name': 'TikTok', 'max_chars': 2200},
-        'youtube': {'icon': '📺', 'name': 'YouTube', 'max_chars': 5000},
-        'threads': {'icon': '🧵', 'name': 'Threads', 'max_chars': 500},
-        'pinterest': {'icon': '📌', 'name': 'Pinterest', 'max_chars': 500},
+        'bluesky': {'icon': '🦋', 'name': 'Bluesky', 'max_chars': 300, 'status': 'supported'},
+        'mastodon': {'icon': '🐘', 'name': 'Mastodon', 'max_chars': 500, 'status': 'supported'},
+        'reddit': {'icon': '🔶', 'name': 'Reddit', 'max_chars': 40000, 'status': 'supported'},
+        'instagram': {'icon': '📸', 'name': 'Instagram', 'max_chars': 2200, 'status': 'coming_soon'},
+        'linkedin': {'icon': '💼', 'name': 'LinkedIn', 'max_chars': 3000, 'status': 'coming_soon'},
+        'facebook': {'icon': '📘', 'name': 'Facebook', 'max_chars': 63206, 'status': 'coming_soon'},
+        'tiktok': {'icon': '🎵', 'name': 'TikTok', 'max_chars': 2200, 'status': 'coming_soon'},
+        'youtube': {'icon': '📺', 'name': 'YouTube', 'max_chars': 5000, 'status': 'coming_soon'},
+        'threads': {'icon': '🧵', 'name': 'Threads', 'max_chars': 500, 'status': 'coming_soon'},
+        'pinterest': {'icon': '📌', 'name': 'Pinterest', 'max_chars': 500, 'status': 'coming_soon'},
     }
     
-    def __init__(self, use_mock: bool = False):
-        self.use_mock = use_mock
+    def __init__(self):
         self.tools = {}
         self._initialize_tools()
     
     def _initialize_tools(self):
-        for platform in self.ALL_PLATFORMS:
-            if self.use_mock:
-                self.tools[platform] = MockPlatformTool(platform)
-            elif platform in self.PLATFORM_MAP:
-                tool = self.PLATFORM_MAP[platform]()
-                if tool.authenticate():
-                    self.tools[platform] = tool
-                else:
-                    self.tools[platform] = MockPlatformTool(platform)
-            else:
-                self.tools[platform] = MockPlatformTool(platform)
+        # Initialize supported platforms
+        for platform, tool_class in self.SUPPORTED_PLATFORMS.items():
+            tool = tool_class()
+            tool.authenticate()  # Try to auth on init
+            self.tools[platform] = tool
+        
+        # Initialize coming soon placeholders
+        for platform in self.COMING_SOON:
+            self.tools[platform] = ComingSoonTool(platform)
     
     def get_available_platforms(self) -> List[Dict]:
-        return [
-            {
+        result = []
+        for pid, info in self.PLATFORM_INFO.items():
+            tool = self.tools.get(pid)
+            result.append({
                 'id': pid,
-                'name': self.PLATFORM_INFO[pid]['name'],
-                'icon': self.PLATFORM_INFO[pid]['icon'],
-                'authenticated': tool.authenticated,
-                'mock': isinstance(tool, MockPlatformTool)
-            }
-            for pid, tool in self.tools.items()
-        ]
+                'name': info['name'],
+                'icon': info['icon'],
+                'max_chars': info['max_chars'],
+                'status': info['status'],
+                'authenticated': tool.authenticated if tool else False,
+                'coming_soon': info['status'] == 'coming_soon'
+            })
+        return result
     
     def post(self, platform: str, content: str, **kwargs) -> Dict:
         if platform not in self.tools:
             return {'success': False, 'error': f'Platform {platform} not supported'}
         return self.tools[platform].post(content=content, **kwargs)
+    
+    def test_connection(self, platform: str) -> Dict:
+        if platform not in self.tools:
+            return {'success': False, 'error': 'Platform not found'}
+        
+        tool = self.tools[platform]
+        if isinstance(tool, ComingSoonTool):
+            return {'success': False, 'error': 'Coming soon - awaiting API approval', 'coming_soon': True}
+        
+        success = tool.authenticate()
+        return {'success': success, 'platform': platform}
